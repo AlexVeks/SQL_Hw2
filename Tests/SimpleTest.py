@@ -4,20 +4,111 @@ from Utility.ReturnValue import ReturnValue
 from Tests.AbstractTest import AbstractTest
 from Business.Customer import Customer, BadCustomer
 
-'''
+"""
     Simple test, create one of your own
     make sure the tests' names start with test
-'''
+"""
 
 
 class Test(AbstractTest):
     def test_customer(self) -> None:
-        c1 = Customer(1, 'name', 21, "0123456789")
-        self.assertEqual(ReturnValue.OK, Solution.add_customer(c1), 'regular customer')
+        c1 = Customer(1, "name", 21, "0123456789")
+        self.assertEqual(ReturnValue.OK, Solution.add_customer(c1), "regular customer")
         c2 = Customer(2, None, 21, "Haifa")
-        self.assertEqual(ReturnValue.BAD_PARAMS, Solution.add_customer(c2), '0123456789')
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS, Solution.add_customer(c2), "0123456789"
+        )
+
+    def test_customer_edge_cases(self) -> None:
+        # --- 1. ALREADY_EXISTS TEST ---
+        # Insert a valid customer, then try to insert a different customer with the SAME ID.
+        c_base = Customer(100, "Alexander Veksler", 25, "0501234567")
+        self.assertEqual(
+            ReturnValue.OK, Solution.add_customer(c_base), "valid initial insertion"
+        )
+
+        c_duplicate_id = Customer(100, "Technion Student", 28, "0549876543")
+        self.assertEqual(
+            ReturnValue.ALREADY_EXISTS,
+            Solution.add_customer(c_duplicate_id),
+            "ID 100 already exists",
+        )
+
+        # --- 2. BAD_PARAMS: ID CONSTRAINTS ---
+        # ID must be > 0
+        c_id_zero = Customer(0, "Valid Name", 30, "0501234567")
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS, Solution.add_customer(c_id_zero), "ID is exactly 0"
+        )
+
+        c_id_negative = Customer(-5, "Valid Name", 30, "0501234567")
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_customer(c_id_negative),
+            "ID is negative",
+        )
+
+        # --- 3. BAD_PARAMS: AGE BOUNDARIES ---
+        # Age must be strictly between 18 and 120
+        c_age_under = Customer(101, "Valid Name", 17, "0501234567")
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_customer(c_age_under),
+            "Age is 17 (too young)",
+        )
+
+        c_age_over = Customer(102, "Valid Name", 121, "0501234567")
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_customer(c_age_over),
+            "Age is 121 (too old)",
+        )
+
+        # Testing exact acceptable boundaries (These should pass!)
+        c_age_18 = Customer(103, "Valid Name", 18, "0501234567")
+        self.assertEqual(
+            ReturnValue.OK, Solution.add_customer(c_age_18), "Age is exactly 18"
+        )
+
+        c_age_120 = Customer(104, "Valid Name", 120, "0501234567")
+        self.assertEqual(
+            ReturnValue.OK, Solution.add_customer(c_age_120), "Age is exactly 120"
+        )
+
+        # --- 4. BAD_PARAMS: PHONE LENGTH ---
+        # Phone must be EXACTLY 10 characters
+        c_phone_short = Customer(105, "Valid Name", 30, "123456789")
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_customer(c_phone_short),
+            "Phone is 9 characters",
+        )
+
+        c_phone_long = Customer(106, "Valid Name", 30, "01234567890")
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_customer(c_phone_long),
+            "Phone is 11 characters",
+        )
+
+        # --- 5. BAD_PARAMS: NULL VALUES ---
+        # None of the fields can be optional
+        c_none_name = Customer(107, None, 30, "0501234567")
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS, Solution.add_customer(c_none_name), "Name is None"
+        )
+
+        c_none_phone = Customer(108, "Valid Name", 30, None)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS, Solution.add_customer(c_none_phone), "Phone is None"
+        )
+
+        c_none_age = Customer(109, "Valid Name", None, "0501234567")
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS, Solution.add_customer(c_none_age), "Age is None"
+        )
 
 
 # *** DO NOT RUN EACH TEST MANUALLY ***
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main(verbosity=2, exit=False)

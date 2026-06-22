@@ -15,8 +15,16 @@ from Business.OrderDish import OrderDish
 
 
 def create_tables() -> None:
-    # TODO: implement
-    pass
+    conn = None
+    try:
+        conn = Connector.DBConnector()
+        query = "CREATE TABLE Customers (cust_id INTEGER PRIMARY KEY CHECK (cust_id > 0), full_name TEXT NOT NULL, age INTEGER NOT NULL CHECK (age >= 18 AND age <= 120), phone VARCHAR(10) NOT NULL CHECK (LENGTH(phone) = 10));"
+        conn.execute(query)
+    except Exception as e:
+        print(e)
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def clear_tables() -> None:
@@ -25,15 +33,90 @@ def clear_tables() -> None:
 
 
 def drop_tables() -> None:
-    # TODO: implement
-    pass
+    conn = None
+    try:
+        conn = Connector.DBConnector()
+
+        # Add all the tables your assignment requires here.
+        # IF EXISTS prevents errors if the table was already dropped.
+        # CASCADE forces the database to also drop any foreign key constraints tied to these tables.
+        query = "DROP TABLE IF EXISTS Customers CASCADE"
+
+        conn.execute(query)
+
+    except Exception as e:
+        print(f"Error dropping tables: {e}")
+
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # CRUD API
 
+
 def add_customer(customer: Customer) -> ReturnValue:
-    # TODO: implement
-    pass
+    if customer is None:
+        return ReturnValue.BAD_PARAMS
+
+    cust_id = customer.get_cust_id()
+    full_name = customer.get_full_name()
+    age = customer.get_age()
+    phone = customer.get_phone()
+
+    # Check for None values (Constraint 5: not null)
+    if cust_id is None or full_name is None or age is None or phone is None:
+        return ReturnValue.BAD_PARAMS
+
+    # Constraint 2: cust_id is positive (>0)
+    if cust_id <= 0:
+        return ReturnValue.BAD_PARAMS
+
+    # Constraint 3: age should be between 18 and 120
+    if not (18 <= age <= 120):
+        return ReturnValue.BAD_PARAMS
+
+    # Constraint 4: The phone number should contain exactly 10 characters
+    if len(phone) != 10:
+        return ReturnValue.BAD_PARAMS
+
+    conn = None
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL(
+            "INSERT INTO Customers (cust_id, full_name, age, phone) VALUES ({id}, {name}, {age}, {phone})"
+        ).format(
+            id=sql.Literal(cust_id),
+            name=sql.Literal(full_name),
+            age=sql.Literal(age),
+            phone=sql.Literal(phone),
+        )
+
+        conn.execute(query)
+        return ReturnValue.OK
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+        return ReturnValue.ERROR
+    except DatabaseException.NOT_NULL_VIOLATION as e:
+        print(e)
+        return ReturnValue.BAD_PARAMS
+    except DatabaseException.CHECK_VIOLATION as e:
+        print(e)
+        return ReturnValue.BAD_PARAMS
+    except DatabaseException.UNIQUE_VIOLATION as e:
+        print(e)
+        return ReturnValue.ALREADY_EXISTS
+    except DatabaseException.FOREIGN_KEY_VIOLATION as e:
+        print(e)
+        return ReturnValue.BAD_PARAMS
+    except Exception as e:
+        print(e)
+        return ReturnValue.ERROR
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_customer(customer_id: int) -> Customer:
@@ -115,9 +198,12 @@ def customer_deleted_rating_on_dish(cust_id: int, dish_id: int) -> ReturnValue:
     # TODO: implement
     pass
 
+
 def get_all_customer_ratings(cust_id: int) -> List[Tuple[int, int]]:
     # TODO: implement
     pass
+
+
 # ---------------------------------- BASIC API: ----------------------------------
 
 # Basic API
@@ -136,6 +222,7 @@ def get_customers_spent_max_avg_amount_money() -> List[int]:
 def get_most_profitable_dish_in_period(start: datetime, end: datetime) -> Dish:
     # TODO: implement
     pass
+
 
 def did_customer_order_top_rated_dishes(cust_id: int) -> bool:
     # TODO: implement
