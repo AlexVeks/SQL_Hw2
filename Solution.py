@@ -72,6 +72,15 @@ def create_tables() -> None:
                                  PRIMARY KEY (order_id, dish_id)
                              );
                              """
+        query_dish_ratings = """
+                             CREATE TABLE DishRatings
+                             (
+                                 cust_id INTEGER NOT NULL REFERENCES Customers (cust_id) ON DELETE CASCADE,
+                                 dish_id INTEGER NOT NULL REFERENCES Dishes (dish_id) ON DELETE CASCADE,
+                                 rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+                                 PRIMARY KEY (cust_id, dish_id)
+                             );
+                             """
 
         conn.execute(query_customers)
         conn.execute(query_orders)
@@ -79,6 +88,7 @@ def create_tables() -> None:
         conn.execute(query_customer_orders)
         conn.execute(query_view_order_customers)
         conn.execute(query_order_dishes)
+        conn.execute(query_dish_ratings)
 
     except Exception as e:
         print(e)
@@ -99,7 +109,7 @@ def drop_tables() -> None:
 
         query = (
             "DROP VIEW IF EXISTS vw_OrderCustomers CASCADE;"
-            "DROP TABLE IF EXISTS Customers, Orders, Dishes, CustomerOrders, OrderDishes CASCADE;"
+            "DROP TABLE IF EXISTS Customers, Orders, Dishes, CustomerOrders, OrderDishes, DishRatings CASCADE;"
         )
         conn.execute(query)
 
@@ -612,13 +622,74 @@ def order_does_not_contain_dish(order_id: int, dish_id: int) -> ReturnValue:
 
 
 def get_all_order_items(order_id: int) -> List[OrderDish]:
-    # TODO: implement
-    pass
+    conn = None
+    items: List[OrderDish] = []
+
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL(
+            "SELECT dish_id, amount, price FROM OrderDishes WHERE order_id = {o_id} ORDER BY dish_id ASC"
+        ).format(o_id=sql.Literal(order_id))
+
+        rows_effected, result = conn.execute(query)
+
+        if rows_effected > 0:
+            for row in result:
+                item = OrderDish(
+                    dish_id=row["dish_id"], amount=row["amount"], price=row["price"]
+                )
+                items.append(item)
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+    except Exception as e:
+        print(e)
+    finally:
+        if conn is not None:
+            conn.close()
+        return items
 
 
 def customer_rated_dish(cust_id: int, dish_id: int, rating: int) -> ReturnValue:
-    # TODO: implement
-    pass
+    if rating is None or rating < 1 or rating > 5:
+        return ReturnValue.BAD_PARAMS
+
+    conn = None
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL(
+            "INSERT INTO DishRatings (cust_id, dish_id, rating) VALUES ({c_id}, {d_id}, {rate})"
+        ).format(
+            c_id=sql.Literal(cust_id),
+            d_id=sql.Literal(dish_id),
+            rate=sql.Literal(rating),
+        )
+
+        conn.execute(query)
+        return ReturnValue.OK
+
+    except DatabaseException.UNIQUE_VIOLATION:
+        return ReturnValue.ALREADY_EXISTS
+
+    except DatabaseException.FOREIGN_KEY_VIOLATION:
+        return ReturnValue.NOT_EXISTS
+
+    except (DatabaseException.NOT_NULL_VIOLATION, DatabaseException.CHECK_VIOLATION):
+        return ReturnValue.BAD_PARAMS
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    except Exception as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def customer_deleted_rating_on_dish(cust_id: int, dish_id: int) -> ReturnValue:
