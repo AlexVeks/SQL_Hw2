@@ -413,8 +413,33 @@ def update_dish_price(dish_id: int, price: float) -> ReturnValue:
 
 
 def update_dish_active_status(dish_id: int, is_active: bool) -> ReturnValue:
-    # TODO: implement
-    pass
+    conn = None
+
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL(
+            "UPDATE Dishes SET is_active={is_active} WHERE dish_id={id}"
+        ).format(is_active=sql.Literal(is_active), id=sql.Literal(dish_id))
+
+        rows_effected, _ = conn.execute(query)
+
+        if rows_effected > 0:
+            return ReturnValue.OK
+        else:
+            return ReturnValue.NOT_EXISTS
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    except Exception as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def customer_placed_order(customer_id: int, order_id: int) -> ReturnValue:

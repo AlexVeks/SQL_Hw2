@@ -512,7 +512,7 @@ class Test(AbstractTest):
         self.assertEqual(
             ReturnValue.OK,
             Solution.update_dish_price(700, 28.5),
-            "Should return OK when an active dish price is updated"
+            "Should return OK when an active dish price is updated",
         )
 
         # Verify the price actually changed in the database
@@ -520,41 +520,100 @@ class Test(AbstractTest):
         self.assertEqual(
             28.5,
             res_updated_dish.get_price(),
-            "The price should be updated to 28.5 in the database"
+            "The price should be updated to 28.5 in the database",
         )
 
         # --- 2. UPDATE INACTIVE DISH ---
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.update_dish_price(701, 20.0),
-            "Should return NOT_EXISTS if trying to update an inactive dish"
+            "Should return NOT_EXISTS if trying to update an inactive dish",
         )
 
         # --- 3. UPDATE NON-EXISTENT / ILLEGAL ID ---
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.update_dish_price(9999, 10.0),
-            "Should return NOT_EXISTS for an ID that isn't in the database"
+            "Should return NOT_EXISTS for an ID that isn't in the database",
         )
 
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.update_dish_price(-5, 10.0),
-            "Should return NOT_EXISTS for illegal negative ID"
+            "Should return NOT_EXISTS for illegal negative ID",
         )
 
         # --- 4. BAD PARAMS: ILLEGAL PRICES ---
         self.assertEqual(
             ReturnValue.BAD_PARAMS,
             Solution.update_dish_price(700, -5.0),
-            "Negative price should return BAD_PARAMS"
+            "Negative price should return BAD_PARAMS",
         )
 
         self.assertEqual(
             ReturnValue.BAD_PARAMS,
             Solution.update_dish_price(700, 0.0),
-            "Price of 0 should return BAD_PARAMS (Must be strictly > 0)"
+            "Price of 0 should return BAD_PARAMS (Must be strictly > 0)",
         )
+
+    def test_update_dish_active_status_edge_cases(self) -> None:
+        # Setup: Create a single active dish
+        d_status = Dish(800, "Status Burger", 30.0, True)
+        Solution.add_dish(d_status)
+
+        # --- 1. SUCCESSFUL UPDATE (Happy Path) ---
+        # Update to False (Inactive)
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.update_dish_active_status(800, False),
+            "Should return OK when dish status is updated to False",
+        )
+
+        # Verify the status actually changed in the database
+        res_dish_inactive = Solution.get_dish(800)
+        self.assertEqual(
+            False,
+            res_dish_inactive.get_is_active(),
+            "The dish should now be inactive in the database",
+        )
+
+        # Update back to True (Active)
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.update_dish_active_status(800, True),
+            "Should return OK when dish status is updated back to True",
+        )
+
+        # Verify it changed back
+        res_dish_active = Solution.get_dish(800)
+        self.assertEqual(
+            True,
+            res_dish_active.get_is_active(),
+            "The dish should be active again in the database",
+        )
+
+        # --- 2. UPDATE NON-EXISTENT / ILLEGAL ID ---
+        # ID 9999 does not exist
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.update_dish_active_status(9999, False),
+            "Should return NOT_EXISTS for an ID that isn't in the database",
+        )
+
+        # ID 0 is illegal per the schema constraints
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.update_dish_active_status(0, True),
+            "Should return NOT_EXISTS for illegal ID 0",
+        )
+
+        # Negative IDs are illegal
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.update_dish_active_status(-10, False),
+            "Should return NOT_EXISTS for illegal negative ID",
+        )
+
 
 # *** DO NOT RUN EACH TEST MANUALLY ***
 if __name__ == "__main__":
