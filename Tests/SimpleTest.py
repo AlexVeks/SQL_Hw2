@@ -614,6 +614,69 @@ class Test(AbstractTest):
             "Should return NOT_EXISTS for illegal negative ID",
         )
 
+    def test_customer_placed_order_edge_cases(self) -> None:
+        # --- SETUP: Create customers and orders ---
+        c_link_1 = Customer(900, "Link Tester", 25, "0501112222")
+        c_link_2 = Customer(903, "Other Tester", 30, "0503334444")
+        Solution.add_customer(c_link_1)
+        Solution.add_customer(c_link_2)
+
+        o_link_1 = Order(901, datetime(2023, 1, 1, 10, 0, 0), 10.0, "Address 1", 2.0)
+        o_link_2 = Order(902, datetime(2023, 1, 1, 10, 0, 0), 10.0, "Address 2", 2.0)
+        Solution.add_order(o_link_1)
+        Solution.add_order(o_link_2)
+
+        # --- 1. SUCCESSFUL LINK (Happy Path) ---
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.customer_placed_order(900, 901),
+            "Should return OK when valid customer and order are linked",
+        )
+
+        # --- 2. ALREADY EXISTS (Order already belongs to someone) ---
+        # Same customer trying again (Triggers UNIQUE_VIOLATION)
+        self.assertEqual(
+            ReturnValue.ALREADY_EXISTS,
+            Solution.customer_placed_order(900, 901),
+            "Should return ALREADY_EXISTS if order is already linked",
+        )
+
+        # Different customer trying to claim an already linked order (Triggers UNIQUE_VIOLATION)
+        self.assertEqual(
+            ReturnValue.ALREADY_EXISTS,
+            Solution.customer_placed_order(903, 901),
+            "Should return ALREADY_EXISTS even if a different customer tries to claim it",
+        )
+
+        # --- 3. NOT EXISTS: MISSING CUSTOMER OR ORDER (Triggers FOREIGN_KEY_VIOLATION) ---
+        # Missing customer, valid order
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.customer_placed_order(9999, 902),
+            "Should return NOT_EXISTS for non-existent customer",
+        )
+
+        # Valid customer, missing order
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.customer_placed_order(900, 9999),
+            "Should return NOT_EXISTS for non-existent order",
+        )
+
+        # --- 4. NOT EXISTS: ILLEGAL IDs (Triggers FOREIGN_KEY_VIOLATION) ---
+        # Since negative IDs aren't in the database, they will safely trigger NOT_EXISTS
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.customer_placed_order(-5, 902),
+            "Should return NOT_EXISTS for illegal negative customer_id",
+        )
+
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.customer_placed_order(900, 0),
+            "Should return NOT_EXISTS for illegal order_id of 0",
+        )
+
 
 # *** DO NOT RUN EACH TEST MANUALLY ***
 if __name__ == "__main__":

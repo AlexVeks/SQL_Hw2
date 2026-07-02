@@ -48,10 +48,18 @@ def create_tables() -> None:
                            is_active BOOLEAN NOT NULL
                        ); \
                        """
+        query_customer_orders = """
+                                CREATE TABLE CustomerOrders
+                                (
+                                    customer_id INTEGER NOT NULL REFERENCES Customers (cust_id) ON DELETE CASCADE,
+                                    order_id INTEGER PRIMARY KEY REFERENCES Orders (order_id) ON DELETE CASCADE
+                                ); \
+                                """
 
         conn.execute(query_customers)
         conn.execute(query_orders)
         conn.execute(query_dishes)
+        conn.execute(query_customer_orders)
 
     except Exception as e:
         print(e)
@@ -70,7 +78,9 @@ def drop_tables() -> None:
     try:
         conn = Connector.DBConnector()
 
-        query = "DROP TABLE IF EXISTS Customers, Orders, Dishes CASCADE;"
+        query = (
+            "DROP TABLE IF EXISTS Customers, Orders, Dishes, CustomerOrders CASCADE;"
+        )
         conn.execute(query)
 
     except Exception as e:
@@ -443,8 +453,34 @@ def update_dish_active_status(dish_id: int, is_active: bool) -> ReturnValue:
 
 
 def customer_placed_order(customer_id: int, order_id: int) -> ReturnValue:
-    # TODO: implement
-    pass
+    conn = None
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL(
+            "INSERT INTO CustomerOrders (customer_id, order_id) VALUES ({c_id}, {o_id})"
+        ).format(c_id=sql.Literal(customer_id), o_id=sql.Literal(order_id))
+
+        conn.execute(query)
+        return ReturnValue.OK
+
+    except DatabaseException.UNIQUE_VIOLATION:
+        return ReturnValue.ALREADY_EXISTS
+
+    except DatabaseException.FOREIGN_KEY_VIOLATION:
+        return ReturnValue.NOT_EXISTS
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    except Exception as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_customer_that_placed_order(order_id: int) -> Customer:
