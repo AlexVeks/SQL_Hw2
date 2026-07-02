@@ -10,6 +10,37 @@ from Business.Dish import Dish, BadDish
 from Business.OrderDish import OrderDish
 
 
+# Helper functions
+
+
+def _map_row_to_customer(row: dict) -> Customer:
+    return Customer(
+        cust_id=row["cust_id"],
+        full_name=row["full_name"],
+        age=row["age"],
+        phone=row["phone"],
+    )
+
+
+def _map_row_to_order(row: dict) -> Order:
+    return Order(
+        order_id=row["order_id"],
+        date=row["date"],
+        delivery_fee=row["delivery_fee"],
+        delivery_address=row["delivery_address"],
+        tip=row["tip"],
+    )
+
+
+def _map_row_to_dish(row: dict) -> Dish:
+    return Dish(
+        dish_id=row["dish_id"],
+        name=row["name"],
+        price=row["price"],
+        is_active=row["is_active"],
+    )
+
+
 # ---------------------------------- CRUD API: ----------------------------------
 # Basic database functions
 
@@ -125,9 +156,6 @@ def drop_tables() -> None:
 
 
 def add_customer(customer: Customer) -> ReturnValue:
-    if customer is None:
-        return ReturnValue.BAD_PARAMS
-
     conn = None
     try:
         conn = Connector.DBConnector()
@@ -183,13 +211,7 @@ def get_customer(customer_id: int) -> Customer:
 
         if rows_effected > 0:
             row = result[0]
-
-            customer = Customer(
-                cust_id=row["cust_id"],
-                full_name=row["full_name"],
-                age=row["age"],
-                phone=row["phone"],
-            )
+            customer = _map_row_to_customer(row)
 
     except DatabaseException.ConnectionInvalid as e:
         print(e)
@@ -292,13 +314,7 @@ def get_order(order_id: int) -> Order:
         if rows_effected > 0:
             row = result[0]
 
-            order = Order(
-                order_id=row["order_id"],
-                date=row["date"],
-                delivery_fee=row["delivery_fee"],
-                delivery_address=row["delivery_address"],
-                tip=row["tip"],
-            )
+            order = _map_row_to_order(row)
 
     except DatabaseException.ConnectionInvalid as e:
         print(e)
@@ -339,9 +355,6 @@ def delete_order(order_id: int) -> ReturnValue:
 
 
 def add_dish(dish: Dish) -> ReturnValue:
-    if dish is None:
-        return ReturnValue.BAD_PARAMS
-
     conn = None
     try:
         conn = Connector.DBConnector()
@@ -399,12 +412,7 @@ def get_dish(dish_id: int) -> Dish:
         if rows_effected > 0:
             row = result[0]
 
-            dish = Dish(
-                dish_id=row["dish_id"],
-                name=row["name"],
-                price=row["price"],
-                is_active=row["is_active"],
-            )
+            dish = _map_row_to_dish(row)
 
     except DatabaseException.ConnectionInvalid as e:
         print(e)
@@ -417,9 +425,6 @@ def get_dish(dish_id: int) -> Dish:
 
 
 def update_dish_price(dish_id: int, price: float) -> ReturnValue:
-    if price is None or price <= 0:
-        return ReturnValue.BAD_PARAMS
-
     conn = None
 
     try:
@@ -528,12 +533,7 @@ def get_customer_that_placed_order(order_id: int) -> Customer:
 
         if rows_effected > 0:
             row = result[0]
-            customer = Customer(
-                cust_id=row["cust_id"],
-                full_name=row["full_name"],
-                age=row["age"],
-                phone=row["phone"],
-            )
+            customer = _map_row_to_customer(row)
 
     except DatabaseException.ConnectionInvalid as e:
         print(e)
@@ -546,9 +546,6 @@ def get_customer_that_placed_order(order_id: int) -> Customer:
 
 
 def order_contains_dish(order_id: int, dish_id: int, amount: int) -> ReturnValue:
-    if amount <= 0:
-        return ReturnValue.BAD_PARAMS
-
     conn = None
     try:
         conn = Connector.DBConnector()
@@ -572,6 +569,9 @@ def order_contains_dish(order_id: int, dish_id: int, amount: int) -> ReturnValue
             return ReturnValue.OK
         else:
             return ReturnValue.NOT_EXISTS
+
+    except DatabaseException.CHECK_VIOLATION:
+        return ReturnValue.BAD_PARAMS
 
     except DatabaseException.UNIQUE_VIOLATION:
         return ReturnValue.ALREADY_EXISTS
@@ -652,9 +652,6 @@ def get_all_order_items(order_id: int) -> List[OrderDish]:
 
 
 def customer_rated_dish(cust_id: int, dish_id: int, rating: int) -> ReturnValue:
-    if rating is None or rating < 1 or rating > 5:
-        return ReturnValue.BAD_PARAMS
-
     conn = None
     try:
         conn = Connector.DBConnector()
