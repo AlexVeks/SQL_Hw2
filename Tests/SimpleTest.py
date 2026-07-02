@@ -3,6 +3,8 @@ import Solution as Solution
 from Utility.ReturnValue import ReturnValue
 from Tests.AbstractTest import AbstractTest
 from Business.Customer import Customer, BadCustomer
+from Business.Order import Order
+from datetime import datetime
 
 """
     Simple test, create one of your own
@@ -195,6 +197,111 @@ class Test(AbstractTest):
             ReturnValue.NOT_EXISTS,
             Solution.delete_customer(401),
             "Deleting the same customer twice should return NOT_EXISTS the second time",
+        )
+
+    def test_add_order_edge_cases(self) -> None:
+        # --- 1. HAPPY PATH & MICROSECONDS TEST ---
+        # The assignment requires that a datetime with microseconds is successfully added.
+        # datetime(year, month, day, hour, minute, second, microsecond)
+        dt_with_microseconds = datetime(2023, 10, 25, 14, 30, 45, 123456)
+        o_valid = Order(1, dt_with_microseconds, 15.5, "Technion City, Haifa", 5.0)
+
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.add_order(o_valid),
+            "Valid order (even with microseconds) should return OK",
+        )
+
+        # --- 2. ALREADY EXISTS (Duplicate ID) ---
+        o_duplicate = Order(1, datetime.now(), 12.0, "Haifa University", 2.5)
+        self.assertEqual(
+            ReturnValue.ALREADY_EXISTS,
+            Solution.add_order(o_duplicate),
+            "Inserting an order with an existing ID (1) should return ALREADY_EXISTS",
+        )
+
+        # --- 3. BAD PARAMS: ID CONSTRAINTS (Must be > 0) ---
+        o_id_zero = Order(0, datetime.now(), 10.0, "Valid Address", 2.0)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_order(o_id_zero),
+            "Order ID 0 is illegal",
+        )
+
+        o_id_negative = Order(-5, datetime.now(), 10.0, "Valid Address", 2.0)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_order(o_id_negative),
+            "Negative Order ID is illegal",
+        )
+
+        # --- 4. BAD PARAMS: DELIVERY FEE CONSTRAINTS (Must be >= 0) ---
+        o_fee_negative = Order(2, datetime.now(), -1.5, "Valid Address", 2.0)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_order(o_fee_negative),
+            "Negative delivery fee is illegal",
+        )
+
+        # Zero fee is valid (Free delivery!)
+        o_fee_zero = Order(3, datetime.now(), 0.0, "Valid Address", 2.0)
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.add_order(o_fee_zero),
+            "Delivery fee of 0.0 should be OK",
+        )
+
+        # --- 5. BAD PARAMS: TIP CONSTRAINTS (Must be >= 0) ---
+        o_tip_negative = Order(4, datetime.now(), 10.0, "Valid Address", -5.0)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_order(o_tip_negative),
+            "Negative tip is illegal",
+        )
+
+        # Zero tip is valid (Bad customer, but valid data)
+        o_tip_zero = Order(5, datetime.now(), 10.0, "Valid Address", 0.0)
+        self.assertEqual(
+            ReturnValue.OK, Solution.add_order(o_tip_zero), "Tip of 0.0 should be OK"
+        )
+
+        # --- 6. BAD PARAMS: DELIVERY ADDRESS CONSTRAINTS (Length >= 5) ---
+        o_address_short = Order(6, datetime.now(), 10.0, "1234", 2.0)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_order(o_address_short),
+            "Address with 4 characters is too short",
+        )
+
+        o_address_empty = Order(7, datetime.now(), 10.0, "", 2.0)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_order(o_address_empty),
+            "Empty address is illegal",
+        )
+
+        # Address with exactly 5 characters should pass
+        o_address_five = Order(8, datetime.now(), 10.0, "12345", 2.0)
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.add_order(o_address_five),
+            "Address with exactly 5 characters should be OK",
+        )
+
+        # --- 7. BAD PARAMS: NULL VALUES ---
+        # Checking that your code correctly catches missing parameters
+        o_null_address = Order(9, datetime.now(), 10.0, None, 2.0)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_order(o_null_address),
+            "Address cannot be None",
+        )
+
+        o_null_date = Order(10, None, 10.0, "Valid Address", 2.0)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_order(o_null_date),
+            "Date cannot be None",
         )
 
 

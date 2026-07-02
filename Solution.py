@@ -18,8 +18,34 @@ def create_tables() -> None:
     conn = None
     try:
         conn = Connector.DBConnector()
-        query = "CREATE TABLE Customers (cust_id INTEGER PRIMARY KEY CHECK (cust_id > 0), full_name TEXT NOT NULL, age INTEGER NOT NULL CHECK (age >= 18 AND age <= 120), phone VARCHAR(10) NOT NULL CHECK (LENGTH(phone) = 10));"
-        conn.execute(query)
+
+        # Create Customers Table
+        query_customers = """
+                          CREATE TABLE Customers
+                          (
+                              cust_id INTEGER PRIMARY KEY CHECK (cust_id > 0),
+                              full_name TEXT NOT NULL,
+                              age INTEGER NOT NULL CHECK (age >= 18 AND age <= 120),
+                              phone TEXT NOT NULL CHECK (LENGTH(phone) = 10)
+                          ); \
+                          """
+
+        # Create Orders Table
+        query_orders = """
+                       CREATE TABLE Orders
+                       (
+                           order_id INTEGER PRIMARY KEY CHECK (order_id > 0),
+                           date TIMESTAMP(0) WITHOUT TIME ZONE NOT NULL,
+                           delivery_fee DECIMAL NOT NULL CHECK (delivery_fee >= 0),
+                           delivery_address TEXT NOT NULL CHECK (LENGTH(delivery_address) >= 5),
+                           tip DECIMAL NOT NULL CHECK (tip >= 0)
+                       ); \
+                       """
+
+        # Execute both queries
+        conn.execute(query_customers)
+        conn.execute(query_orders)
+
     except Exception as e:
         print(e)
     finally:
@@ -40,8 +66,7 @@ def drop_tables() -> None:
         # Add all the tables your assignment requires here.
         # IF EXISTS prevents errors if the table was already dropped.
         # CASCADE forces the database to also drop any foreign key constraints tied to these tables.
-        query = "DROP TABLE IF EXISTS Customers CASCADE"
-
+        query = "DROP TABLE IF EXISTS Customers, Orders CASCADE;"
         conn.execute(query)
 
     except Exception as e:
@@ -59,27 +84,6 @@ def add_customer(customer: Customer) -> ReturnValue:
     if customer is None:
         return ReturnValue.BAD_PARAMS
 
-    cust_id = customer.get_cust_id()
-    full_name = customer.get_full_name()
-    age = customer.get_age()
-    phone = customer.get_phone()
-
-    # Check for None values (Constraint 5: not null)
-    if cust_id is None or full_name is None or age is None or phone is None:
-        return ReturnValue.BAD_PARAMS
-
-    # Constraint 2: cust_id is positive (>0)
-    if cust_id <= 0:
-        return ReturnValue.BAD_PARAMS
-
-    # Constraint 3: age should be between 18 and 120
-    if not (18 <= age <= 120):
-        return ReturnValue.BAD_PARAMS
-
-    # Constraint 4: The phone number should contain exactly 10 characters
-    if len(phone) != 10:
-        return ReturnValue.BAD_PARAMS
-
     conn = None
     try:
         conn = Connector.DBConnector()
@@ -87,33 +91,34 @@ def add_customer(customer: Customer) -> ReturnValue:
         query = sql.SQL(
             "INSERT INTO Customers (cust_id, full_name, age, phone) VALUES ({id}, {name}, {age}, {phone})"
         ).format(
-            id=sql.Literal(cust_id),
-            name=sql.Literal(full_name),
-            age=sql.Literal(age),
-            phone=sql.Literal(phone),
+            id=sql.Literal(customer.get_cust_id()),
+            name=sql.Literal(customer.get_full_name()),
+            age=sql.Literal(customer.get_age()),
+            phone=sql.Literal(customer.get_phone()),
         )
 
         conn.execute(query)
         return ReturnValue.OK
 
+    except DatabaseException.UNIQUE_VIOLATION:
+        return ReturnValue.ALREADY_EXISTS
+
+    except (
+        DatabaseException.NOT_NULL_VIOLATION,
+        DatabaseException.CHECK_VIOLATION,
+        DatabaseException.FOREIGN_KEY_VIOLATION,
+    ) as e:
+        print(e)
+        return ReturnValue.BAD_PARAMS
+
     except DatabaseException.ConnectionInvalid as e:
         print(e)
         return ReturnValue.ERROR
-    except DatabaseException.NOT_NULL_VIOLATION as e:
-        print(e)
-        return ReturnValue.BAD_PARAMS
-    except DatabaseException.CHECK_VIOLATION as e:
-        print(e)
-        return ReturnValue.BAD_PARAMS
-    except DatabaseException.UNIQUE_VIOLATION as e:
-        print(e)
-        return ReturnValue.ALREADY_EXISTS
-    except DatabaseException.FOREIGN_KEY_VIOLATION as e:
-        print(e)
-        return ReturnValue.BAD_PARAMS
+
     except Exception as e:
         print(e)
         return ReturnValue.ERROR
+
     finally:
         if conn is not None:
             conn.close()
@@ -196,8 +201,44 @@ def delete_customer(customer_id: int) -> ReturnValue:
 
 
 def add_order(order: Order) -> ReturnValue:
-    # TODO: implement
-    pass
+    conn = None
+    result = ReturnValue.ERROR
+
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL(
+            "INSERT INTO Orders (order_id, date, delivery_fee, delivery_address, tip) "
+            "VALUES ({id}, {date}, {fee}, {address}, {tip})"
+        ).format(
+            id=sql.Literal(order.get_order_id()),
+            date=sql.Literal(order.get_datetime()),
+            fee=sql.Literal(order.get_delivery_fee()),
+            address=sql.Literal(order.get_delivery_address()),
+            tip=sql.Literal(order.get_tip()),
+        )
+
+        conn.execute(query)
+        result = ReturnValue.OK
+
+    except DatabaseException.UNIQUE_VIOLATION:
+        result = ReturnValue.ALREADY_EXISTS
+
+    except (DatabaseException.NOT_NULL_VIOLATION, DatabaseException.CHECK_VIOLATION):
+        result = ReturnValue.BAD_PARAMS
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+        result = ReturnValue.ERROR
+
+    except Exception as e:
+        print(e)
+        result = ReturnValue.ERROR
+
+    finally:
+        if conn is not None:
+            conn.close()
+        return result
 
 
 def get_order(order_id: int) -> Order:
