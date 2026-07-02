@@ -26,7 +26,7 @@ def create_tables() -> None:
                               full_name TEXT NOT NULL,
                               age INTEGER NOT NULL CHECK (age >= 18 AND age <= 120),
                               phone TEXT NOT NULL CHECK (LENGTH(phone) = 10)
-                          ); \
+                          );
                           """
 
         query_orders = """
@@ -37,7 +37,7 @@ def create_tables() -> None:
                            delivery_fee DECIMAL NOT NULL CHECK (delivery_fee >= 0),
                            delivery_address TEXT NOT NULL CHECK (LENGTH(delivery_address) >= 5),
                            tip DECIMAL NOT NULL CHECK (tip >= 0)
-                       ); \
+                       );
                        """
         query_dishes = """
                        CREATE TABLE Dishes
@@ -46,14 +46,14 @@ def create_tables() -> None:
                            name TEXT NOT NULL CHECK (LENGTH(name) >= 4),
                            price DECIMAL NOT NULL CHECK (price > 0),
                            is_active BOOLEAN NOT NULL
-                       ); \
+                       );
                        """
         query_customer_orders = """
                                 CREATE TABLE CustomerOrders
                                 (
                                     customer_id INTEGER NOT NULL REFERENCES Customers (cust_id) ON DELETE CASCADE,
                                     order_id INTEGER PRIMARY KEY REFERENCES Orders (order_id) ON DELETE CASCADE
-                                ); \
+                                );
                                 """
 
         query_view_order_customers = """
@@ -62,12 +62,23 @@ def create_tables() -> None:
                                      FROM CustomerOrders co
                                               INNER JOIN Customers c ON co.customer_id = c.cust_id;
                                      """
+        query_order_dishes = """
+                             CREATE TABLE OrderDishes
+                             (
+                                 order_id INTEGER NOT NULL REFERENCES Orders (order_id) ON DELETE CASCADE,
+                                 dish_id INTEGER NOT NULL REFERENCES Dishes (dish_id) ON DELETE CASCADE,
+                                 amount INTEGER NOT NULL CHECK (amount > 0),
+                                 price DECIMAL NOT NULL CHECK (price > 0),
+                                 PRIMARY KEY (order_id, dish_id)
+                             );
+                             """
 
         conn.execute(query_customers)
         conn.execute(query_orders)
         conn.execute(query_dishes)
         conn.execute(query_customer_orders)
         conn.execute(query_view_order_customers)
+        conn.execute(query_order_dishes)
 
     except Exception as e:
         print(e)
@@ -88,7 +99,7 @@ def drop_tables() -> None:
 
         query = (
             "DROP VIEW IF EXISTS vw_OrderCustomers CASCADE;"
-            "DROP TABLE IF EXISTS Customers, Orders, Dishes, CustomerOrders CASCADE;"
+            "DROP TABLE IF EXISTS Customers, Orders, Dishes, CustomerOrders, OrderDishes CASCADE;"
         )
         conn.execute(query)
 
@@ -525,13 +536,79 @@ def get_customer_that_placed_order(order_id: int) -> Customer:
 
 
 def order_contains_dish(order_id: int, dish_id: int, amount: int) -> ReturnValue:
-    # TODO: implement
-    pass
+    if amount <= 0:
+        return ReturnValue.BAD_PARAMS
+
+    conn = None
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL(
+            """
+                        INSERT INTO OrderDishes (order_id, dish_id, amount, price)
+                        SELECT {o_id}, {d_id}, {amount}, price
+                        FROM Dishes
+                        WHERE dish_id = {d_id} AND is_active = TRUE
+                        """
+        ).format(
+            o_id=sql.Literal(order_id),
+            d_id=sql.Literal(dish_id),
+            amount=sql.Literal(amount),
+        )
+
+        rows_effected, _ = conn.execute(query)
+
+        if rows_effected > 0:
+            return ReturnValue.OK
+        else:
+            return ReturnValue.NOT_EXISTS
+
+    except DatabaseException.UNIQUE_VIOLATION:
+        return ReturnValue.ALREADY_EXISTS
+
+    except DatabaseException.FOREIGN_KEY_VIOLATION:
+        return ReturnValue.NOT_EXISTS
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    except Exception as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def order_does_not_contain_dish(order_id: int, dish_id: int) -> ReturnValue:
-    # TODO: implement
-    pass
+    conn = None
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL(
+            "DELETE FROM OrderDishes WHERE order_id = {o_id} AND dish_id = {d_id}"
+        ).format(o_id=sql.Literal(order_id), d_id=sql.Literal(dish_id))
+
+        rows_effected, _ = conn.execute(query)
+
+        if rows_effected > 0:
+            return ReturnValue.OK
+        else:
+            return ReturnValue.NOT_EXISTS
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    except Exception as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_all_order_items(order_id: int) -> List[OrderDish]:

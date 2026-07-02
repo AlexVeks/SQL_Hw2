@@ -719,6 +719,119 @@ class Test(AbstractTest):
             "Should return BadCustomer for illegal negative order ID"
         )
 
+    def test_order_contains_dish_edge_cases(self) -> None:
+        # --- SETUP: Create Orders and Dishes ---
+        o_target = Order(2000, datetime(2023, 6, 1, 10, 0, 0), 10.0, "Hungry St", 5.0)
+        Solution.add_order(o_target)
+
+        d_active = Dish(2001, "Active Fries", 15.0, True)
+        d_inactive = Dish(2002, "Inactive Burger", 30.0, False)
+        Solution.add_dish(d_active)
+        Solution.add_dish(d_inactive)
+
+        # --- 1. SUCCESSFUL ADDITION (Happy Path) ---
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.order_contains_dish(2000, 2001, 2),
+            "Should return OK when adding an active dish to a valid order"
+        )
+
+        # --- 2. ALREADY EXISTS (Dish already in this specific order) ---
+        self.assertEqual(
+            ReturnValue.ALREADY_EXISTS,
+            Solution.order_contains_dish(2000, 2001, 1),
+            "Should return ALREADY_EXISTS if dish is already in the order"
+        )
+
+        # --- 3. NOT EXISTS: INACTIVE DISH ---
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.order_contains_dish(2000, 2002, 1),
+            "Should return NOT_EXISTS if the dish is inactive"
+        )
+
+        # --- 4. NOT EXISTS: MISSING IDS ---
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.order_contains_dish(9999, 2001, 1),
+            "Should return NOT_EXISTS for non-existent order_id"
+        )
+
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.order_contains_dish(2000, 9999, 1),
+            "Should return NOT_EXISTS for non-existent dish_id"
+        )
+
+        # --- 5. BAD PARAMS: AMOUNT ---
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.order_contains_dish(2000, 2001, -5),
+            "Should return BAD_PARAMS for negative amount"
+        )
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.order_contains_dish(2000, 2001, 0),
+            "Should return BAD_PARAMS for amount of 0"
+        )
+
+    def test_order_does_not_contain_dish_edge_cases(self) -> None:
+        # --- SETUP: Create Order, Dishes, and Link them ---
+        o_remove = Order(3000, datetime(2023, 7, 1, 10, 0, 0), 10.0, "Remove St", 5.0)
+        Solution.add_order(o_remove)
+
+        d_keep = Dish(3001, "Keep Fries", 15.0, True)
+        d_toss = Dish(3002, "Toss Burger", 30.0, True)
+        d_never_added = Dish(3003, "Never Added Soup", 20.0, True)
+        Solution.add_dish(d_keep)
+        Solution.add_dish(d_toss)
+        Solution.add_dish(d_never_added)
+
+        # Add the dishes to the order
+        Solution.order_contains_dish(3000, 3001, 2)
+        Solution.order_contains_dish(3000, 3002, 1)
+
+        # --- 1. SUCCESSFUL REMOVAL (Happy Path) ---
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.order_does_not_contain_dish(3000, 3002),
+            "Should return OK when successfully removing a dish from an order"
+        )
+
+        # --- 2. DOUBLE DELETION (Dish already removed) ---
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.order_does_not_contain_dish(3000, 3002),
+            "Should return NOT_EXISTS if trying to remove a dish that is no longer in the order"
+        )
+
+        # --- 3. NOT EXISTS: DISH NEVER ADDED TO THIS ORDER ---
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.order_does_not_contain_dish(3000, 3003),
+            "Should return NOT_EXISTS if the dish exists in the DB but is not in this specific order"
+        )
+
+        # --- 4. NOT EXISTS: MISSING IDS ---
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.order_does_not_contain_dish(9999, 3001),
+            "Should return NOT_EXISTS for non-existent order_id"
+        )
+
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.order_does_not_contain_dish(3000, 9999),
+            "Should return NOT_EXISTS for non-existent dish_id"
+        )
+
+        # --- 5. NOT EXISTS: ILLEGAL IDS ---
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.order_does_not_contain_dish(-5, 3001),
+            "Should return NOT_EXISTS for illegal negative order_id"
+        )
+
 # *** DO NOT RUN EACH TEST MANUALLY ***
 if __name__ == "__main__":
     unittest.main(verbosity=2, exit=False)
