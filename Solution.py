@@ -913,8 +913,44 @@ def did_customer_order_top_rated_dishes(cust_id: int) -> bool:
 
 
 def get_customers_rated_but_not_ordered() -> List[int]:
-    # TODO: implement
-    pass
+    conn = None
+    customers = []
+    try:
+        conn = Connector.DBConnector()
+
+        query = """
+            SELECT DISTINCT dr.cust_id
+            FROM DishRatings dr
+            JOIN (
+                SELECT d.dish_id
+                FROM Dishes d
+                LEFT JOIN DishRatings r ON d.dish_id = r.dish_id
+                GROUP BY d.dish_id
+                ORDER BY COALESCE(AVG(r.rating), 3) ASC, d.dish_id ASC
+                LIMIT 5
+            ) lowest ON dr.dish_id = lowest.dish_id
+            WHERE dr.rating < 3
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM CustomerOrders co
+                  JOIN OrderDishes od ON co.order_id = od.order_id
+                  WHERE co.customer_id = dr.cust_id
+                    AND od.dish_id = dr.dish_id
+              )
+            ORDER BY dr.cust_id ASC
+        """
+
+        rows, result = conn.execute(query)
+        for row in result:
+            customers.append(row["cust_id"])
+        return customers
+
+    except Exception as e:
+        print(e)
+        return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_non_worth_price_increase() -> List[int]:
