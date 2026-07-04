@@ -931,7 +931,7 @@ def get_customers_rated_but_not_ordered() -> List[int]:
             ) lowest ON dr.dish_id = lowest.dish_id
             WHERE dr.rating < 3
               AND NOT EXISTS (
-                  SELECT 1
+                  SELECT *
                   FROM CustomerOrders co
                   JOIN OrderDishes od ON co.order_id = od.order_id
                   WHERE co.customer_id = dr.cust_id
@@ -954,8 +954,47 @@ def get_customers_rated_but_not_ordered() -> List[int]:
 
 
 def get_non_worth_price_increase() -> List[int]:
-    # TODO: implement
-    pass
+    conn = None
+    dishes = []
+    try:
+        conn = Connector.DBConnector()
+
+        query = """
+            SELECT d.dish_id
+            FROM Dishes d
+            JOIN (
+                SELECT dish_id, price, AVG(amount) * price AS avg_profit
+                FROM OrderDishes
+                GROUP BY dish_id, price
+            ) current_price_orders
+              ON d.dish_id = current_price_orders.dish_id
+             AND d.price = current_price_orders.price
+            WHERE d.is_active = TRUE
+              AND EXISTS (
+                  SELECT *
+                  FROM (
+                      SELECT dish_id, price, AVG(amount) * price AS avg_profit
+                      FROM OrderDishes
+                      GROUP BY dish_id, price
+                  ) old_price_orders
+                  WHERE old_price_orders.dish_id = d.dish_id
+                    AND old_price_orders.price < d.price
+                    AND old_price_orders.avg_profit > current_price_orders.avg_profit
+              )
+            ORDER BY d.dish_id ASC
+        """
+
+        rows, result = conn.execute(query)
+        for row in result:
+            dishes.append(row["dish_id"])
+        return dishes
+
+    except Exception as e:
+        print(e)
+        return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_cumulative_profit_per_month(year: int) -> List[Tuple[int, float]]:
