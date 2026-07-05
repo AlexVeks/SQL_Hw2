@@ -998,10 +998,88 @@ def get_non_worth_price_increase() -> List[int]:
 
 
 def get_cumulative_profit_per_month(year: int) -> List[Tuple[int, float]]:
-    # TODO: implement
-    pass
+    conn = None
+    profits = []
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL("""
+            SELECT months.month,
+                   COALESCE((
+                       SELECT SUM(v.total_price)
+                       FROM Orders o
+                       JOIN vw_OrderTotals v ON o.order_id = v.order_id
+                       WHERE EXTRACT(YEAR FROM o.date) = {year}
+                         AND EXTRACT(MONTH FROM o.date) <= months.month
+                   ), 0) AS cumulative_profit
+            FROM (
+                SELECT 1 AS month UNION SELECT 2 UNION SELECT 3 UNION SELECT 4
+                UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8
+                UNION SELECT 9 UNION SELECT 10 UNION SELECT 11 UNION SELECT 12
+            ) months
+            ORDER BY months.month DESC
+        """).format(year=sql.Literal(year))
+
+        rows, result = conn.execute(query)
+        for row in result:
+            profits.append((row["month"], float(row["cumulative_profit"])))
+        return profits
+
+    except Exception as e:
+        print(e)
+        return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_potential_dish_recommendations(cust_id: int) -> List[int]:
-    # TODO: implement
-    pass
+    conn = None
+    recommendations = []
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL("""
+            WITH RECURSIVE SimilarCustomers(cust_id) AS (
+                SELECT c.cust_id
+                FROM Customers c
+                WHERE c.cust_id = {cust_id}
+
+                UNION
+
+                SELECT dr2.cust_id
+                FROM SimilarCustomers sc
+                JOIN DishRatings dr1
+                  ON sc.cust_id = dr1.cust_id
+                 AND dr1.rating >= 4
+                JOIN DishRatings dr2
+                  ON dr1.dish_id = dr2.dish_id
+                 AND dr2.rating >= 4
+            )
+            SELECT DISTINCT dr.dish_id
+            FROM SimilarCustomers sc
+            JOIN DishRatings dr
+              ON sc.cust_id = dr.cust_id
+             AND dr.rating >= 4
+            WHERE sc.cust_id <> {cust_id}
+              AND NOT EXISTS (
+                  SELECT *
+                  FROM CustomerOrders co
+                  JOIN OrderDishes od ON co.order_id = od.order_id
+                  WHERE co.customer_id = {cust_id}
+                    AND od.dish_id = dr.dish_id
+              )
+            ORDER BY dr.dish_id ASC
+        """).format(cust_id=sql.Literal(cust_id))
+
+        rows, result = conn.execute(query)
+        for row in result:
+            recommendations.append(row["dish_id"])
+        return recommendations
+
+    except Exception as e:
+        print(e)
+        return []
+    finally:
+        if conn is not None:
+            conn.close()
